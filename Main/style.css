@@ -1,85 +1,171 @@
-// ... (Código anterior de estado y gestión de tareas se mantiene igual) ...
-let tasks = JSON.parse(localStorage.getItem('taskflow_tasks')) || [];
-let currentFilter = 'all';
-let searchQuery = '';
+/* Variables de la aplicación */
+:root {
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --danger-color: #ef4444;
+    --danger-hover: #dc2626;
+    --bg-color: #f3f4f6;
+    --surface-color: #ffffff;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
 
-// --- Lógica de Modo Oscuro ---
-const darkModeToggle = document.getElementById('dark-mode-toggle');
-const themeIcon = document.getElementById('theme-icon');
+/* Reset básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-function initTheme() {
-    const savedTheme = localStorage.getItem('taskflow_theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.5;
+}
 
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-        document.documentElement.classList.add('dark');
-        themeIcon.textContent = '☀️';
-    } else {
-        document.documentElement.classList.remove('dark');
-        themeIcon.textContent = '🌙';
+/* Cabecera y Pie */
+.app-header, .app-footer {
+    background-color: var(--primary-color);
+    color: white;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* Layout Principal (Flexbox) */
+.container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.app-main {
+    flex: 1;
+}
+
+.app-sidebar {
+    width: 300px;
+    background: var(--surface-color);
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+}
+
+/* Formularios e Inputs */
+input[type="text"], input[type="search"] {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 16px; /* Requisito: mínimo 16px */
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+input[type="text"]:focus, input[type="search"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* Botones */
+button {
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+}
+
+.btn-primary { background-color: var(--primary-color); color: white; }
+.btn-primary:hover, .btn-primary:focus { background-color: var(--primary-hover); }
+
+.btn-secondary { background-color: #e5e7eb; color: var(--text-main); width: 100%; margin-bottom: 0.5rem;}
+.btn-secondary:hover { background-color: #d1d5db; }
+
+.btn-danger { background-color: var(--danger-color); color: white; width: 100%;}
+.btn-danger:hover { background-color: var(--danger-hover); }
+
+/* Filtros */
+.filters {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.filter-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+}
+.filter-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Lista de tareas */
+.task-list { list-style: none; }
+
+.task-item {
+    background: var(--surface-color);
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.task-item.completed .task-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+.task-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    flex: 1;
+}
+
+.task-actions button {
+    background: transparent;
+    padding: 0.25rem;
+    font-size: 1.2rem;
+}
+
+/* Responsive (Media Queries) */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column; /* El Aside pasa abajo */
+    }
+    .app-sidebar {
+        width: 100%;
+    }
+    .filter-buttons {
+        flex-wrap: wrap;
+    }
+    .filter-btn {
+        flex: 1;
     }
 }
-
-darkModeToggle.addEventListener('click', () => {
-    const isDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('taskflow_theme', isDark ? 'dark' : 'light');
-    themeIcon.textContent = isDark ? '☀️' : '🌙';
-});
-
-// Inicializar tema al cargar
-initTheme();
-
-
-// --- Renderizado con Clases de Tailwind ---
-function renderTasks() {
-    const taskList = document.getElementById('task-list');
-    const template = document.getElementById('task-template').content;
-    taskList.innerHTML = '';
-    
-    const filteredTasks = tasks.filter(task => {
-        const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesFilter = currentFilter === 'all' ? true :
-                             currentFilter === 'completed' ? task.completed : !task.completed;
-        return matchesSearch && matchesFilter;
-    });
-
-    filteredTasks.forEach(task => {
-        const clone = template.cloneNode(true);
-        const li = clone.querySelector('li');
-        const titleSpan = clone.querySelector('.task-title');
-        const checkbox = clone.querySelector('.task-checkbox');
-
-        titleSpan.textContent = task.title;
-        checkbox.checked = task.completed;
-
-        if (task.completed) {
-            titleSpan.classList.add('line-through', 'text-gray-400', 'dark:text-slate-500');
-        }
-
-        // Eventos
-        checkbox.addEventListener('change', () => toggleTask(task.id));
-        clone.querySelector('.btn-delete').addEventListener('click', () => deleteTask(task.id));
-        clone.querySelector('.btn-edit').addEventListener('click', () => editTask(task.id));
-
-        taskList.appendChild(clone);
-    });
-
-    updateStats();
-}
-
-// ... (El resto de funciones: toggleTask, deleteTask, saveTasks, etc., siguen la misma lógica anterior) ...
-
-// Actualización estética de botones de filtro activos
-document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.filter-btn').forEach(b => {
-            b.classList.remove('bg-white', 'dark:bg-slate-600', 'shadow-sm');
-        });
-        e.target.classList.add('bg-white', 'dark:bg-slate-600', 'shadow-sm');
-        currentFilter = e.target.dataset.filter;
-        renderTasks();
-    });
-});
-
-// Llamada inicial
-renderTasks();
